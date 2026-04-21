@@ -58,6 +58,7 @@ class AVLTree:
         root.height = 1 + max(self.get_height(root.left), self.get_height(root.right))
         balance = self.get_balance(root)
 
+        # Rotations
         if balance > 1 and machine.capacity < root.left.machine.capacity:
             return self.right_rotate(root)
         if balance < -1 and machine.capacity > root.right.machine.capacity:

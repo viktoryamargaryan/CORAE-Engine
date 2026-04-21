@@ -1,3 +1,4 @@
+feature/avl-resource-manager
 from structures import AVLTree, Machine
 
 class AllocationEngine:
@@ -27,4 +28,6 @@ class AllocationEngine:
         """Վերադարձնում է տեղեկություն մեքենայի մասին ըստ ID-ի O(1) ժամանակում"""
         return self.machines_map.get(machine_id, "Մեքենան չի գտնվել")
         
-        return None  # Եթե համապատասխան մեքենա չգտնվեց
+    return None  # Եթե համապատասխան մեքենա չգտնվեց
+
+main

@@ -22,5 +22,9 @@ class AllocationEngine:
             
             best_machine.status = "busy" # Նշում ենք, որ մեքենան զբաղված է
             return best_machine.machine_id
+            
+    def get_machine_info(self, machine_id):
+        """Վերադարձնում է տեղեկություն մեքենայի մասին ըստ ID-ի O(1) ժամանակում"""
+        return self.machines_map.get(machine_id, "Մեքենան չի գտնվել")
         
         return None  # Եթե համապատասխան մեքենա չգտնվեց

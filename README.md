@@ -31,8 +31,8 @@ This is a university project built for a Data Structures course. We are open to 
 
 | Name | GitHub |
 |------|--------|
-| Viktoria Amargaryan | [@viktoryamargaryan](https://github.com/viktoryamargaryan) |
-| Lilit | [@LilitMkrtchyan2024](https://github.com/LilitMkrtchyan2024) |
+| Viktorya Margaryan | [@viktoryamargaryan](https://github.com/viktoryamargaryan) |
+| Lilit Zalinyan | [@Lilit862](https://github.com/Lilit862) |
 
 ---
 

@@ -1,86 +1,227 @@
+from __future__ import annotations
+
 import heapq
+import math
+import logging
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
 
 class NetworkRouting:
-    def __init__(self):
+    """
+    Weighted undirected graph representing the machine infrastructure.
+
+    Nodes  = machine IDs (str)
+    Edges  = (machine_a, machine_b, weight)  where weight = network latency / cost
+
+    Core operation: find_optimal_machine(source, candidates) runs Dijkstra
+    from *source* and returns the candidate with the lowest path cost.
+    """
+
+    def __init__(self) -> None:
+        # adjacency list: node_id → list of (neighbour_id, weight)
+        self._graph: dict[str, list[tuple[str, float]]] = {}
+
+
+    # Graph mutation
+    
+    def add_machine(self, machine_id: str) -> None:
+        """Register a node in the graph (idempotent)."""
+        if machine_id not in self._graph:
+            self._graph[machine_id] = []
+            logger.debug("NetworkRouting: added node %s", machine_id)
+
+    def remove_machine(self, machine_id: str) -> bool:
         """
-        Գրաֆի կառուցվածքը պահում ենք Adjacency List-ի միջոցով:
-        self.graph = { 'NodeA': [('NodeB', 10), ('NodeC', 5)] }
+        Remove a node and all edges incident to it.
+        Returns True if the node existed, False otherwise.
         """
-        self.graph = {}
+        if machine_id not in self._graph:
+            return False
 
-    def add_machine(self, machine_id):
-        """Ավելացնում է նոր մեքենա (հանգույց) գրաֆում:"""
-        if machine_id not in self.graph:
-            self.graph[machine_id] = []
+        del self._graph[machine_id]
+        # Remove all edges pointing to this node
+        for neighbours in self._graph.values():
+            neighbours[:] = [(n, w) for n, w in neighbours if n != machine_id]
 
-    def add_connection(self, node1, node2, weight):
-        """Ավելացնում է կապ երկու մեքենաների միջև (weight-ը latency-ն է կամ cost-ը):"""
-        if node1 in self.graph and node2 in self.graph:
-            self.graph[node1].append((node2, weight))
-            self.graph[node2].append((node1, weight))
-        else:
-            print(f"Error: One or both nodes ({node1}, {node2}) not found.")
+        logger.debug("NetworkRouting: removed node %s", machine_id)
+        return True
 
-    def find_optimal_machine(self, start_point, candidates):
+    def add_connection(self, from_id: str, to_id: str, weight: float) -> None:
         """
-        Իրականացնում է Dijkstra ալգորիթմը:
-        start_point: որտեղից է գալիս Job-ը (օրինակ՝ 'Scheduler')
-        candidates: AVL ծառի կողմից տրված հարմար մեքենաների ցանկը
+        Add an undirected edge between two machines.
+        Both nodes are auto-created if they don't exist yet.
+        Raises ValueError if weight is non-positive.
         """
-        if not candidates:
-            return None, float('inf')
+        if weight <= 0:
+            raise ValueError(f"Edge weight must be positive, got {weight!r}")
 
-        # Հեռավորությունների բառարան, սկզբում բոլորը անվերջություն են
-        distances = {node: float('inf') for node in self.graph}
-        distances[start_point] = 0
-        
-        # Priority Queue (min-heap) պահում է (distance, node)
-        priority_queue = [(0, start_point)]
+        self.add_machine(from_id)
+        self.add_machine(to_id)
 
-        while priority_queue:
-            current_distance, current_node = heapq.heappop(priority_queue)
+        self._graph[from_id].append((to_id, weight))
+        self._graph[to_id].append((from_id, weight))
+        logger.debug("NetworkRouting: added edge %s ↔ %s (weight=%s)", from_id, to_id, weight)
 
-            # Եթե գտած ճանապարհն ավելի երկար է, քան արդեն ունեցածը, բաց թողնել
-            if current_distance > distances[current_node]:
+    def remove_connection(self, from_id: str, to_id: str) -> bool:
+        """Remove the undirected edge between two nodes (if it exists)."""
+        changed = False
+        if from_id in self._graph:
+            before = len(self._graph[from_id])
+            self._graph[from_id] = [(n, w) for n, w in self._graph[from_id] if n != to_id]
+            changed = len(self._graph[from_id]) < before
+        if to_id in self._graph:
+            self._graph[to_id] = [(n, w) for n, w in self._graph[to_id] if n != from_id]
+        return changed
+
+    
+    # Dijkstra
+
+
+    def _dijkstra(self, source: str) -> dict[str, float]:
+        """
+        Run Dijkstra from *source* and return a dict mapping every reachable
+        node to its shortest-path cost from source.
+        """
+        if source not in self._graph:
+            raise KeyError(f"Source node {source!r} not in graph.")
+
+        dist: dict[str, float] = {node: math.inf for node in self._graph}
+        dist[source] = 0.0
+
+        # min-heap entries: (cost, node_id)
+        heap: list[tuple[float, str]] = [(0.0, source)]
+
+        while heap:
+            current_cost, current_node = heapq.heappop(heap)
+
+            # Stale entry — skip
+            if current_cost > dist[current_node]:
                 continue
 
-            for neighbor, weight in self.graph[current_node]:
-                distance = current_distance + weight
+            for neighbour, weight in self._graph.get(current_node, []):
+                new_cost = current_cost + weight
+                if new_cost < dist[neighbour]:
+                    dist[neighbour] = new_cost
+                    heapq.heappush(heap, (new_cost, neighbour))
 
-                # Եթե գտել ենք ավելի կարճ ճանապարհ
-                if distance < distances[neighbor]:
-                    distances[neighbor] = distance
-                    heapq.heappush(priority_queue, (distance, neighbor))
+        return dist
 
-        # Թեկնածուներից ընտրում ենք այն մեկը, որի հեռավորությունը ամենափոքրն է
-        best_machine = None
-        min_dist = float('inf')
+    def _dijkstra_with_path(
+        self, source: str
+    ) -> tuple[dict[str, float], dict[str, Optional[str]]]:
+        """
+        Dijkstra that also tracks the predecessor of each node so that the
+        full path can be reconstructed.
 
-        for machine in candidates:
-            if machine in distances and distances[machine] < min_dist:
-                min_dist = distances[machine]
-                best_machine = machine
+        Returns (dist, prev) where prev[node] = the node visited just before
+        it on the shortest path from source.
+        """
+        if source not in self._graph:
+            raise KeyError(f"Source node {source!r} not in graph.")
 
-        return best_machine, min_dist
+        dist: dict[str, float] = {node: math.inf for node in self._graph}
+        prev: dict[str, Optional[str]] = {node: None for node in self._graph}
+        dist[source] = 0.0
 
-# --- Թեստավորման հատված ---
-if __name__ == "__main__":
-    routing = NetworkRouting()
+        heap: list[tuple[float, str]] = [(0.0, source)]
+
+        while heap:
+            current_cost, current_node = heapq.heappop(heap)
+            if current_cost > dist[current_node]:
+                continue
+            for neighbour, weight in self._graph.get(current_node, []):
+                new_cost = current_cost + weight
+                if new_cost < dist[neighbour]:
+                    dist[neighbour] = new_cost
+                    prev[neighbour] = current_node
+                    heapq.heappush(heap, (new_cost, neighbour))
+
+        return dist, prev
+
+    @staticmethod
+    def _reconstruct_path(prev: dict[str, Optional[str]], target: str) -> list[str]:
+        path: list[str] = []
+        current: Optional[str] = target
+        while current is not None:
+            path.append(current)
+            current = prev.get(current)
+        return list(reversed(path))
+
     
-    # Ավելացնում ենք մեքենաներ
-    nodes = ['Scheduler', 'M1', 'M2', 'M3', 'M4']
-    for n in nodes:
-        routing.add_machine(n)
-        
-    # Ստեղծում ենք ցանցային կապեր (կամայական weight-երով)
-    routing.add_connection('Scheduler', 'M1', 10)
-    routing.add_connection('Scheduler', 'M2', 20)
-    routing.add_connection('M1', 'M3', 5)
-    routing.add_connection('M2', 'M3', 2)
-    routing.add_connection('M3', 'M4', 1)
+    # Public routing API
 
-    # Ենթադրենք AVL ծառը մեզ տվել է M2 և M4 մեքենաները որպես հարմար տարբերակներ
-    potential_candidates = ['M2', 'M4']
-    
-    target, cost = routing.find_optimal_machine('Scheduler', potential_candidates)
-    print(f"Ամենաօպտիմալ մեքենան: {target}, Ճանապարհի արժեքը: {cost}") 
+    def find_optimal_machine(
+        self,
+        source: str,
+        candidates: list[str],
+    ) -> tuple[Optional[str], float]:
+        """
+        From *source*, find the candidate machine with the lowest Dijkstra
+        path cost.
+
+        Returns (best_machine_id, cost).
+        Returns (None, inf) if no candidate is reachable.
+        """
+        if not candidates:
+            return None, math.inf
+
+        try:
+            dist = self._dijkstra(source)
+        except KeyError as exc:
+            logger.error("find_optimal_machine: %s", exc)
+            return None, math.inf
+
+        best_id: Optional[str] = None
+        best_cost: float = math.inf
+
+        for candidate in candidates:
+            cost = dist.get(candidate, math.inf)
+            if cost < best_cost:
+                best_cost = cost
+                best_id = candidate
+
+        if best_id is None:
+            logger.warning(
+                "No reachable candidate from %s among %s", source, candidates
+            )
+
+        return best_id, best_cost
+
+    def get_path_cost(self, source: str, target: str) -> float:
+        """Return the shortest path cost between two nodes. Returns inf if unreachable."""
+        try:
+            dist = self._dijkstra(source)
+            return dist.get(target, math.inf)
+        except KeyError:
+            return math.inf
+
+    def get_full_path(self, source: str, target: str) -> tuple[list[str], float]:
+        """
+        Return (path, cost) where path is the list of nodes on the shortest
+        route from source to target. path is empty if unreachable.
+        """
+        try:
+            dist, prev = self._dijkstra_with_path(source)
+        except KeyError:
+            return [], math.inf
+
+        cost = dist.get(target, math.inf)
+        if cost == math.inf:
+            return [], math.inf
+
+        return self._reconstruct_path(prev, target), cost
+
+    # Introspection
+
+    @property
+    def nodes(self) -> list[str]:
+        return list(self._graph.keys())
+
+    @property
+    def edge_count(self) -> int:
+        return sum(len(neighbours) for neighbours in self._graph.values()) // 2
+
+    def __repr__(self) -> str:
+        return f"NetworkRouting(nodes={len(self._graph)}, edges={self.edge_count})"

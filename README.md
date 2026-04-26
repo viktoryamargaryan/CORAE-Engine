@@ -1,6 +1,6 @@
 # CORAE — Cost-Optimized Resource Allocation Engine
 
-> A university Data Structures project built with Python, implementing AVL Trees, Hash Maps, Dijkstra's Algorithm, and a live web dashboard.
+> A university Data Structures project built with Python, implementing AVL Trees, Hash Maps, Dijkstra's Algorithm, and a web dashboard.
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat-square&logo=python)
 ![Flask](https://img.shields.io/badge/Flask-3.0-lightgrey?style=flat-square&logo=flask)
@@ -29,10 +29,10 @@ This is a university project built for a Data Structures course. We are open to 
 
 ## Authors
 
-| Name | GitHub |
-|------|--------|
-| Viktorya Margaryan | [@viktoryamargaryan](https://github.com/viktoryamargaryan) |
-| Lilit Zalinyan | [@Lilit862](https://github.com/Lilit862) |
+| Name | GitHub | Contributions |
+|------|--------|---------------|
+| Viktorya Margaryan | [@viktoryamargaryan](https://github.com/viktoryamargaryan) | AVL Tree, Engine, Flask API, Web Dashboard |
+| Lilit Zalinyan | [@Lilit862](https://github.com/Lilit862) | Dijkstra, Job Simulator, Tests, README |
 
 ---
 
